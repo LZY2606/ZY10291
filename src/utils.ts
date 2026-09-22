@@ -1,0 +1,187 @@
+import { lstatSync, accessSync, constants, readFileSync } from "node:fs";
+import nodeCrypto from "node:crypto";
+import { isAbsolute, join } from "pathe";
+import type { PackageJson } from "pkg-types";
+import { pathToFileURL } from "mlly";
+import { isWindows } from "std-env";
+import type { Context } from "./types";
+import { gray, green, blue, yellow, cyan, red } from "yoctocolors";
+
+export function isDir(filename: string | URL): boolean {
+  if (typeof filename !== "string" || filename.startsWith("file://")) {
+    return false;
+  }
+  try {
+    const stat = lstatSync(filename);
+    return stat.isDirectory();
+  } catch {
+    // lstatSync throws an error if path doesn't exist
+    return false;
+  }
+}
+
+export function isWritable(filename: string): boolean {
+  try {
+    accessSync(filename, constants.W_OK);
+    return true;
+  } catch {
+    return false;
+  }
+}
+
+export function hash(content: string, len = 8) {
+  const hash = isFipsMode()
+    ? nodeCrypto.createHash("sha256") // #340
+    : nodeCrypto.createHash("md5");
+  return hash.update(content).digest("hex").slice(0, len);
+}
+
+export function readNearestPackageJSON(path: string): PackageJson | undefined {
+  while (path && path !== "." && path !== "/") {
+    path = join(path, "..");
+    try {
+      const pkg = readFileSync(join(path, "package.json"), "utf8");
+      try {
+        return JSON.parse(pkg);
+      } catch {
+        // Ignore errors
+      }
+      break;
+    } catch {
+      // Ignore errors
+    }
+  }
+}
+
+export function wrapModule(source: string, opts?: { async?: boolean }) {
+  return `(${opts?.async ? "async " : ""}function (exports, require, module, __filename, __dirname, jitiImport, jitiESMResolve) { ${source}\n});`;
+}
+
+const debugMap = {
+  true: green("true"),
+  false: yellow("false"),
+  "[rebuild]": yellow("[rebuild]"),
+  "[esm]": blue("[esm]"),
+  "[cjs]": green("[cjs]"),
+  "[import]": blue("[import]"),
+  "[require]": green("[require]"),
+  "[native]": cyan("[native]"),
+  "[transpile]": yellow("[transpile]"),
+  "[fallback]": red("[fallback]"),
+  "[unknown]": red("[unknown]"),
+  "[hit]": green("[hit]"),
+  "[miss]": yellow("[miss]"),
+  "[json]": green("[json]"),
+  "[data]": green("[data]"),
+};
+
+export function debug(ctx: Context, ...args: unknown[]) {
+  if (!ctx.opts.debug) {
+    return;
+  }
+  const cwd = process.cwd();
+  console.log(
+    gray(
+      [
+        "[jiti]",
+        ...args.map((arg) => {
+          if ((arg as string) in debugMap) {
+            return debugMap[arg as keyof typeof debugMap];
+          }
+          if (typeof arg !== "string") {
+            return JSON.stringify(arg);
+          }
+          return arg.replace(cwd, ".");
+        }),
+      ].join(" "),
+    ),
+  );
+}
+
+export function jitiInteropDefault(ctx: Context, mod: any) {
+  return ctx.opts.interopDefault ? interopDefault(mod) : mod;
+}
+
+function interopDefault(mod: any): any {
+  const modType = typeof mod;
+  if (mod === null || (modType !== "object" && modType !== "function")) {
+    return mod;
+  }
+
+  const def = mod.default;
+  const defType = typeof def;
+  const defIsNil = def === null || def === undefined;
+  const defIsObj = defType === "object" || defType === "function";
+
+  if (defIsNil && mod instanceof Promise) {
+    // Hotfix for #388
+    return mod;
+  }
+
+  // Check if we need the apply trap (default is callable but mod isn't)
+  const needsApplyTrap = defType === "function" && modType !== "function";
+
+  // Check if we need fallback to default export properties
+  // If default is not an object/function or is a Promise, no fallback needed
+  const needsDefaultFallback =
+    defIsObj && !(def instanceof Promise); /** issue: #400 */
+
+  // Use Proxy with caching - cache eliminates repeated lookup overhead
+  const cache = new Map<string | symbol, any>();
+
+  return new Proxy(mod, {
+    get(target, prop) {
+      if (cache.has(prop)) {
+        return cache.get(prop);
+      }
+
+      let value: any;
+      if (prop === "__esModule") {
+        value = true;
+      } else if (prop === "default") {
+        if (defIsNil) {
+          value = mod;
+        } else if (typeof def?.default === "function" && mod.__esModule) {
+          value = def.default; // #396
+        } else {
+          value = def;
+        }
+      } else if (prop in target) {
+        value = target[prop];
+      } else if (needsDefaultFallback) {
+        value = def[prop];
+        if (typeof value === "function") {
+          value = value.bind(def);
+        }
+      }
+
+      cache.set(prop, value);
+      return value;
+    },
+    apply: needsApplyTrap
+      ? (_target, thisArg, args) => Reflect.apply(def, thisArg, args)
+      : undefined,
+  });
+}
+
+export function normalizeWindowsImportId(id: string) {
+  if (!isWindows || !isAbsolute(id)) {
+    return id;
+  }
+  return pathToFileURL(id);
+}
+
+let _fipsMode: boolean | undefined;
+
+function isFipsMode() {
+  if (_fipsMode !== undefined) {
+    return _fipsMode;
+  }
+  try {
+    _fipsMode = !!nodeCrypto.getFips?.();
+    return _fipsMode;
+  } catch {
+    _fipsMode = false;
+    return _fipsMode;
+  }
+}
