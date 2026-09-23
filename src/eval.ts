@@ -17,6 +17,7 @@ import { jitiResolve } from "./resolve";
 import { jitiRequire, nativeImportOrRequire } from "./require";
 import createJiti from "./jiti";
 import { transform } from "./transform";
+import { noteTrace } from "./trace";
 
 export function evalModule(
   ctx: Context,
@@ -47,6 +48,7 @@ export function evalModule(
       // prettier-ignore
       (isTypescript || isESM || ctx.isTransformRe.test(filename) || hasESMSyntax(source)));
   const start = performance.now();
+  noteTrace(ctx, { strategy: needsTranspile ? "transform" : "native" });
   if (needsTranspile) {
     source = transform(ctx, {
       filename,
@@ -75,6 +77,7 @@ export function evalModule(
       return Promise.resolve(
         nativeImportOrRequire(ctx, filename, evalOptions.async),
       ).catch((error: any) => {
+        noteTrace(ctx, { nativeFallback: true });
         debug(ctx, "Native import error:", error);
         debug(ctx, "[fallback]", filename);
         return evalModule(ctx, source, {
@@ -86,6 +89,7 @@ export function evalModule(
       try {
         return nativeImportOrRequire(ctx, filename, evalOptions.async);
       } catch (error: any) {
+        noteTrace(ctx, { nativeFallback: true });
         debug(ctx, "Native require error:", error);
         debug(ctx, "[fallback]", filename);
         source = transform(ctx, {
@@ -121,6 +125,7 @@ export function evalModule(
       nativeImport: ctx.nativeImport,
       onError: ctx.onError,
       createRequire: ctx.createRequire,
+      traceSession: ctx.traceSession,
     },
     true /* isNested */,
   );

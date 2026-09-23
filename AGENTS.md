@@ -26,6 +26,15 @@ Used by Nuxt, Tailwind, ESLint, Docusaurus, and 300M+ monthly npm downloads.
 | `utils.ts` | Helpers (debug logging, readFile, interopDefault proxy, etc.) |
 | `types.ts` | Core type definitions |
 | `plugins/` | Babel plugins for `import.meta.env`, `import.meta.url/dirname/filename`, `import.meta.resolve` |
+| `trace.ts` | Optional structured load tracing (`onTrace` option) — per-load records with trace id, alias rule, strategy, cache hits, dependency edges and outcome |
+
+### Load tracing
+
+- Opt-in via `onTrace(event)` option; default debug text output is unchanged
+- Each top-level load gets a trace id; nested loads share it and link via `parent` (circular = `backEdge`)
+- Trace state lives on the jiti context (`traceSeq` / `traceSession` / `traceRecord` in `src/types.ts`), propagated to nested instances via `eval.ts`
+- Callback errors are swallowed (`emitTrace` in `src/trace.ts`) so they cannot corrupt the module cache
+- Tests: `test/trace.test.ts` with fixtures in `test/fixtures/trace/`
 
 ### Build
 

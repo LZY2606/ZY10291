@@ -4,6 +4,7 @@ import { tmpdir } from "node:os";
 import { dirname, join, basename, resolve } from "pathe";
 import { filename } from "pathe/utils";
 import { debug, isWritable, hash } from "./utils";
+import { noteTrace } from "./trace";
 
 const CACHE_VERSION = "9";
 
@@ -35,11 +36,21 @@ export function getCache(
   if (!ctx.opts.rebuildFsCache && existsSync(cacheFilePath)) {
     const cacheSource = readFileSync(cacheFilePath, "utf8");
     if (cacheSource.endsWith(sourceHash)) {
+      noteTrace(ctx, {
+        fsCache: "hit",
+        transformKey: cacheName,
+        transformVersion: `v${CACHE_VERSION}`,
+      });
       debug(ctx, "[cache]", "[hit]", topts.filename, "~>", cacheFilePath);
       return cacheSource;
     }
   }
 
+  noteTrace(ctx, {
+    fsCache: "miss",
+    transformKey: cacheName,
+    transformVersion: `v${CACHE_VERSION}`,
+  });
   debug(ctx, "[cache]", "[miss]", topts.filename);
   const result = get();
 

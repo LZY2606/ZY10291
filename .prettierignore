@@ -1,4 +1,5 @@
 test/fixtures/error-parse/index.ts
+test/fixtures/trace/transform-error/bad.ts
 coverage
 dist
 CHANGELOG.md

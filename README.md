@@ -116,6 +116,25 @@ You can alias `jiti` to `jiti/native` to directly depend on runtime's [`import.m
 
 Enable verbose logging. You can use `JITI_DEBUG=1 <your command>` to enable it.
 
+### `onTrace`
+
+- Type: Function
+- Default: `undefined`
+
+Optional callback receiving a structured trace event for every module load, useful for debugging and tooling.
+
+Each top-level load (`jiti()` / `jiti.import()`) starts a new trace (`traceId`). Nested loads triggered by evaluated modules share the same trace id and point to their requesting module via `parent`, forming dependency edges (circular references are marked with `backEdge`).
+
+Events include the raw `specifier`, applied `alias` rule, resolved `filename`, `strategy` (`native` / `transform` / `json` / `builtin` / `virtual` / `data`), `sourceHash`, runtime and filesystem cache hits (`runtimeCache` / `fsCache` with `transformKey` and `transformVersion`), and the eval `outcome`.
+
+Traces never expose module exports, source code (only a hash) or environment values. Errors thrown by the callback are swallowed and cannot corrupt the module cache. Trace state is isolated per `createJiti` instance.
+
+```js
+const jiti = createJiti(import.meta.url, {
+  onTrace: (event) => console.log(event),
+});
+```
+
 ### `fsCache`
 
 - Type: Boolean | String

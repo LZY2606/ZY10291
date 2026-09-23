@@ -1,7 +1,7 @@
 import unjs from "eslint-config-unjs";
 
 export default unjs({
-  ignores: ["test/fixtures/error-*"],
+  ignores: ["test/fixtures/error-*", "test/fixtures/trace/transform-error"],
   rules: {
     "unicorn/no-null": 0,
     "unicorn/prefer-top-level-await": 0,

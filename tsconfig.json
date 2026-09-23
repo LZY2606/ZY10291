@@ -17,5 +17,9 @@
     "declaration": false
   },
   "include": ["src", "lib", "test"],
-  "exclude": ["test/fixtures/error-parse/index.ts"]
+  "exclude": [
+    "test/fixtures/error-parse/index.ts",
+    "test/fixtures/trace/alias-chain",
+    "test/fixtures/trace/transform-error"
+  ]
 }

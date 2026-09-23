@@ -302,6 +302,125 @@ export interface JitiOptions {
    * @default false
    */
   tsconfigPaths?: boolean | string;
+
+  /**
+   * Optional callback receiving a structured {@linkcode JitiTraceEvent}
+   * for every module load, useful for debugging and tooling.
+   *
+   * Each top-level load (`jiti()` / `jiti.import()`) starts a new trace
+   * (identified by {@linkcode JitiTraceEvent.traceId | traceId}); nested
+   * loads triggered by evaluated modules share the same trace id and point
+   * to their requesting module via `parent`, forming dependency edges.
+   *
+   * Traces never expose module exports, source code (only a hash) or
+   * environment values. Errors thrown by the callback are swallowed and
+   * cannot corrupt the module cache.
+   *
+   * Trace state is isolated per `createJiti` instance.
+   *
+   * @default undefined
+   */
+  onTrace?: (event: JitiTraceEvent) => void;
+}
+
+/**
+ * Structured trace event for a single module load.
+ *
+ * See {@linkcode JitiOptions.onTrace}.
+ */
+export interface JitiTraceEvent {
+  /**
+   * Id of the top-level load this event belongs to.
+   *
+   * Increments per top-level load, per `createJiti` instance.
+   */
+  traceId: string;
+
+  /**
+   * Raw specifier as requested (before alias and path resolution).
+   */
+  specifier: string;
+
+  /**
+   * Filename of the module that requested this load.
+   *
+   * `undefined` for the top-level entry. Together with `filename`,
+   * this forms a dependency edge from the parent to the loaded module.
+   */
+  parent?: string;
+
+  /**
+   * Alias rule applied during resolution (when `alias` option matched).
+   */
+  alias?: {
+    /** Matched alias rule (key of the `alias` option). */
+    rule: string;
+    /** Specifier after applying the alias. */
+    to: string;
+  };
+
+  /**
+   * Resolved absolute filename (when resolution succeeded).
+   */
+  filename?: string;
+
+  /**
+   * How the module is handled.
+   */
+  strategy?: "builtin" | "data" | "virtual" | "json" | "native" | "transform";
+
+  /**
+   * A native require/import was attempted first and jiti fell back to
+   * transformation after a native error.
+   */
+  nativeFallback?: boolean;
+
+  /**
+   * Hash of the source read from the filesystem.
+   *
+   * The source code itself is never exposed in traces.
+   */
+  sourceHash?: string;
+
+  /**
+   * Runtime (in-memory) module cache result.
+   */
+  runtimeCache?: "hit" | "miss";
+
+  /**
+   * Filesystem transform cache result.
+   */
+  fsCache?: "hit" | "miss";
+
+  /**
+   * Transform cache key (fs cache entry name) used for this module.
+   *
+   * Also reported on fs cache hits, so the original transform
+   * key/version stays visible.
+   */
+  transformKey?: string;
+
+  /**
+   * Transform cache format version (matches the `v{version}` tag stored
+   * in fs cache entries).
+   */
+  transformVersion?: string;
+
+  /**
+   * `true` when this load is a circular back-edge: the module was
+   * requested again while still being evaluated.
+   */
+  backEdge?: boolean;
+
+  /**
+   * Eval outcome of the load.
+   */
+  outcome: "ok" | "error";
+
+  /**
+   * Error message (first line only) when `outcome` is `"error"`.
+   */
+  error?: string;
 }
 
 interface NodeRequire {

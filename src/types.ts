@@ -7,7 +7,9 @@ export type {
   TransformOptions,
   TransformResult,
   JitiResolveOptions,
+  JitiTraceEvent,
 } from "../lib/types";
+import type { JitiTraceEvent } from "../lib/types";
 
 export interface Context {
   filename: string;
@@ -26,4 +28,10 @@ export interface Context {
   additionalExts: string[];
   nativeRequire: NodeRequire;
   createRequire: (typeof import("node:module"))["createRequire"];
+  /** @internal Sequence generator for top-level load trace ids */
+  traceSeq?: { n: number };
+  /** @internal Active load trace session (shared with nested jiti instances) */
+  traceSession?: { id: string };
+  /** @internal In-flight load trace record (not propagated to nested loads) */
+  traceRecord?: JitiTraceEvent;
 }

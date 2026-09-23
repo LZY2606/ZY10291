@@ -32,6 +32,7 @@ export default function createJiti(
     | "nativeImport"
     | "onError"
     | "createRequire"
+    | "traceSession"
   >,
   isNested = false,
 ): Jiti {
@@ -117,6 +118,7 @@ export default function createJiti(
     parentCache: parentContext.parentCache,
     nativeImport: parentContext.nativeImport,
     createRequire: parentContext.createRequire,
+    traceSession: parentContext.traceSession,
   };
 
   // Debug
